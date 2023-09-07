@@ -14,6 +14,7 @@ import java.util.Optional;
 public interface RestaurantRepository extends JpaRepository<Restaurant, Integer> {
     boolean existsByRestAgentEmail(String restAgentEmail);
     Restaurant findByRestAgentEmail(String restAgentEmail);
+    boolean existsByRestName(String restName);
 
     @Override
     Optional<Restaurant> findById(Integer integer);
@@ -31,6 +32,14 @@ public interface RestaurantRepository extends JpaRepository<Restaurant, Integer>
             "WHERE r.isVerified = true " +
             "ORDER BY " +
             "CASE WHEN r.isAvailable = false THEN 1 ELSE 0 END, " +
-            "CASE WHEN CAST(:currentTime AS TIME) NOT BETWEEN CAST(r.openTime AS TIME) AND CAST(r.closeTime AS TIME) THEN 3 ELSE 0 END")
+            "CASE WHEN CAST(:currentTime AS TIME) NOT BETWEEN CAST(r.openTime AS TIME) AND CAST(r.closeTime AS TIME) THEN 2 ELSE 0 END")
     Page<Restaurant> findAllWithCustomSorting(@Param("currentTime") LocalTime currentTime, Pageable pageable);
+
+    @Query("SELECT r FROM Restaurant r " +
+            "WHERE r.isVerified = true " +
+            "AND r.isVeg = :isVeg " +
+            "ORDER BY " +
+            "CASE WHEN r.isAvailable = false THEN 1 ELSE 0 END, " +
+            "CASE WHEN CAST(:currentTime AS TIME) NOT BETWEEN CAST(r.openTime AS TIME) AND CAST(r.closeTime AS TIME) THEN 2 ELSE 0 END")
+    Page<Restaurant> findAllWithIsVegFilter(@Param("currentTime") LocalTime currentTime, @Param("isVeg") boolean isVeg, Pageable pageable);
 }

@@ -9,22 +9,35 @@ import com.example.food.delivery.ServiceInterface.RestaurantService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/restaurant")
+//@RequestMapping("/restaurant")
 public class RestaurantController {
     @Autowired
     private RestaurantService restService;
 
-    @PostMapping(value = "/addRestaurant")
-    public ResponseEntity<BaseResponse<?>> addRestaurant(@Valid @RequestBody RestaurantRequest restaurantRequest, @RequestParam String restAgentEmail){
-        return restService.addRestaurant(restaurantRequest, restAgentEmail);
+    @PostMapping(value = "/restaurant/add")
+    @PreAuthorize("#userRole == 'RESTAURANT_AGENT'")
+    public ResponseEntity<BaseResponse<?>> addRestaurant(@Valid @RequestBody RestaurantRequest restaurantRequest,
+                                                         @RequestHeader("userEmail") String userEmail,
+                                                         @RequestHeader("userRole") String userRole){
+        return restService.addRestaurant(restaurantRequest, userEmail);
     }
 
-    @GetMapping(value = "/getRestaurants")
-    public ResponseEntity<?> getAllRestaurants(@RequestParam int page) {
-        return restService.getAllRestaurants(page);
+    @GetMapping(value = "/all/restaurants")
+    @PreAuthorize("#userRole == 'ADMIN'")
+    public ResponseEntity<?> getRestaurants(@RequestParam int page,
+                                            @RequestHeader("userEmail") String userEmail,
+                                            @RequestHeader("userRole") String userRole) {
+        System.out.println(userEmail);
+        return restService.getRestaurants(page);
+    }
+
+    @GetMapping(value = "/restaurants")
+    public ResponseEntity<?> getRestaurantsByIsVeg(@RequestParam boolean isVeg, @RequestParam int page) {
+        return restService.getRestaurantsByIsVeg(page, isVeg);
     }
 
     @PutMapping("/setRestaurantAvailability")

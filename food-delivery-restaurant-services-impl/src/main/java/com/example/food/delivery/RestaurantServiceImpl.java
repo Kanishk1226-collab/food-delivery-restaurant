@@ -2,11 +2,13 @@ package com.example.food.delivery;
 
 import com.example.food.delivery.Request.ApproveRestaurantRequest;
 import com.example.food.delivery.Request.RestaurantRequest;
+import com.example.food.delivery.Request.RestaurantStatus;
 import com.example.food.delivery.Request.UpdateRestaurantRequest;
 import com.example.food.delivery.Response.BaseResponse;
 import com.example.food.delivery.Response.ResponseStatus;
 import com.example.food.delivery.Response.RestaurantResponse;
 import com.example.food.delivery.ServiceInterface.RestaurantService;
+import org.apache.commons.lang3.EnumUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,27 +36,37 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     public synchronized ResponseEntity<BaseResponse<?>> addRestaurant(RestaurantRequest restRequest, String restAgentEmail) {
         try {
-            if(!isValidEmail(restAgentEmail)) {
-                throw new RestaurantManagementExceptions.InvalidInputException("Enter Valid Restaurant Agent Email");
-            }
-            BaseResponse<?> isRestAgentValidResponse = restTemplate.getForObject("http://localhost:8081/user-service/restaurantAgent/isRestAgentLoggedIn?restAgentEmail=" + restAgentEmail, BaseResponse.class);
-            if(isRestAgentValidResponse == null) {
-                throw new RestaurantManagementExceptions.RestTemplateException("System Error");
-            }
-            if(!isRestAgentValidResponse.isSuccess()){
-                throw new RestaurantManagementExceptions.RestTemplateException(isRestAgentValidResponse.getError());
-            }
+//            if(!isValidEmail(restAgentEmail)) {
+//                throw new RestaurantManagementExceptions.InvalidInputException("Enter Valid Restaurant Agent Email");
+//            }
+//            BaseResponse<?> isRestAgentValidResponse = restTemplate.getForObject("http://localhost:8081/user-service/restaurantAgent/isRestAgentLoggedIn?restAgentEmail=" + restAgentEmail, BaseResponse.class);
+//            if(isRestAgentValidResponse == null) {
+//                throw new RestaurantManagementExceptions.RestTemplateException("System Error");
+//            }
+//            if(!isRestAgentValidResponse.isSuccess()){
+//                throw new RestaurantManagementExceptions.RestTemplateException(isRestAgentValidResponse.getError());
+//            }
             if (restaurantRepository.existsByRestAgentEmail(restAgentEmail)) {
-                throw new RestaurantManagementExceptions.UserAlreadyExistsException("Restaurant Agent with this email already registered");
+                throw new RestaurantManagementExceptions.UserAlreadyExistsException("Restaurant with this email already registered");
             }
-
+            String restName = restRequest.getRestName();
+            if (restaurantRepository.existsByRestName(restRequest.getRestName())) {
+                String isVeg = restRequest.getIsVeg() ? "Pure Veg" : "Non-Veg";
+                throw new RestaurantManagementExceptions.DuplicateException("Restaurant name " + restRequest.getRestName() + " already exists. Below are few suggestions to keep " +
+                        "to keep your restaurant name unique. \n" +
+                        "1. Add Specific location descriptor to differentiate between similar restaurant names \n" +
+                        "For example, if \"" + restName + "\" already exists, the you can consider naming restaurant as \"" + restName + " Downtown\" or \"" + restName + " Plaza\" \n" +
+                        "2. Highlight Special Features: If your restaurant has unique features, such as offering a specific type of cuisine, incorporate those features into the name. \n" +
+                        "For example, \"" + restName + " " + isVeg + "\"");
+            }
             Restaurant restaurant = new Restaurant();
             restaurant.setRestName(restRequest.getRestName());
             restaurant.setLocation(restRequest.getLocation());
-            restaurant.setAvgRating(0);
+            restaurant.setAvgRating(null);
             restaurant.setOpenTime(restRequest.getOpenTime());
             restaurant.setCloseTime(restRequest.getCloseTime());
-            restaurant.setIsAvailable(false);
+            restaurant.setStatus(RestaurantStatus.NOT_AVAILABLE);
+            restaurant.setAvailMsg("Unverified Restaurant");
             restaurant.setVeg(restRequest.getIsVeg());
             restaurant.setRestAgentEmail(restAgentEmail);
             restaurant.setIsVerified(false);
@@ -66,7 +78,7 @@ public class RestaurantServiceImpl implements RestaurantService {
         return ResponseEntity.ok(response);
     }
 
-    public synchronized ResponseEntity<BaseResponse<?>> getAllRestaurants(int page) {
+    public synchronized ResponseEntity<BaseResponse<?>> getRestaurants(int page) {
         LocalTime currentTime = LocalTime.now();
         int pageSize = 10;
         Pageable pageable = PageRequest.of(page, pageSize);
@@ -76,7 +88,17 @@ public class RestaurantServiceImpl implements RestaurantService {
         return ResponseEntity.ok(response);
     }
 
-    public synchronized ResponseEntity<BaseResponse<?>> setRestaurantAvailability(String restAgentEmail, boolean isAvail) {
+    public synchronized ResponseEntity<BaseResponse<?>> getRestaurantsByIsVeg(int page, boolean isVeg) {
+        LocalTime currentTime = LocalTime.now();
+        int pageSize = 10;
+        Pageable pageable = PageRequest.of(page, pageSize);
+        Page<Restaurant> restaurants = restaurantRepository.findAllWithIsVegFilter(currentTime, isVeg, pageable);
+        List<Restaurant> restaurantList = restaurants.getContent();
+        response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, restaurantList);
+        return ResponseEntity.ok(response);
+    }
+
+    public synchronized ResponseEntity<BaseResponse<?>> setRestaurantAvailability(String restAgentEmail, String status) {
         try {
             if(!isValidEmail(restAgentEmail)) {
                 throw new RestaurantManagementExceptions.InvalidInputException("Enter valid Restaurant Agent Email");
@@ -88,7 +110,10 @@ public class RestaurantServiceImpl implements RestaurantService {
             if(!restaurant.getIsVerified()) {
                 throw new RestaurantManagementExceptions.VerifyException("Restaurant Not Verified");
             }
-            restaurant.setIsAvailable(isAvail);
+            if(!EnumUtils.isValidEnum(RestaurantStatus.class, status.toUpperCase())) {
+                throw new RestaurantManagementExceptions.InvalidInputException("Status should be either AVAILABLE or NOT_AVAILABLE");
+            }
+            restaurant.setStatus(RestaurantStatus.valueOf(status.toUpperCase()));
             restaurantRepository.save(restaurant);
             response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, "Availability status changed");
         } catch(Exception e) {
@@ -96,7 +121,6 @@ public class RestaurantServiceImpl implements RestaurantService {
         }
         return ResponseEntity.ok(response);
     }
-
 
     public synchronized ResponseEntity<BaseResponse<?>> removeRestaurant(int restId) {
         try {
@@ -177,7 +201,7 @@ public class RestaurantServiceImpl implements RestaurantService {
                 restaurant.setCloseTime(updateRestaurant.getCloseTime());
             }
             if(updateRestaurant.getIsAvailable() != null) {
-                restaurant.setIsAvailable(updateRestaurant.getIsAvailable());
+                restaurant.setStatus(updateRestaurant.getIsAvailable());
             }
             restaurantRepository.save(restaurant);
             response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, "Restaurant updated Successfully");

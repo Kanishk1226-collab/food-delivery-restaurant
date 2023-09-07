@@ -1,6 +1,7 @@
 package com.example.food.delivery;
 
 import com.example.food.delivery.*;
+import com.example.food.delivery.Request.MenuItemFilter;
 import com.example.food.delivery.Request.MenuItemRequest;
 import com.example.food.delivery.Request.MenuTypeRequest;
 import com.example.food.delivery.Request.UpdateMenuItemRequest;
@@ -63,6 +64,8 @@ public class MenuItemServiceImpl implements MenuItemService {
             menuItem.setPrice(menuItemRequest.getPrice());
             menuItem.setAvailable(menuItemRequest.getIsAvailable());
             menuItem.setVeg(menuItemRequest.getIsVeg());
+            menuItem.setRating(null);
+//            menuItem.setRatingCount(0);
             menuItemRepository.save(menuItem);
             response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, "Menu Item added successfully");
         } catch (Exception e) {
@@ -184,6 +187,14 @@ public class MenuItemServiceImpl implements MenuItemService {
         int pageSize = 10;
         Pageable pageable = PageRequest.of(page, pageSize);
         Page<MenuItem> menuItems = menuItemRepository.findByMenuRestId(menuRestId, pageable);
+        response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, menuItems.map(this::getMenuItemResponse).getContent());
+        return ResponseEntity.ok(response);
+    }
+
+    public ResponseEntity<BaseResponse<?>> getMenuItemByIsVeg(MenuItemFilter menuItemFilter, int page) {
+        int pageSize = 10;
+        Pageable pageable = PageRequest.of(page, pageSize);
+        Page<MenuItem> menuItems = menuItemRepository.findByMenuRestIdIsVegFilter(menuItemFilter.getMenuRestId(), menuItemFilter.getIsVeg(), pageable);
         response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, menuItems.map(this::getMenuItemResponse).getContent());
         return ResponseEntity.ok(response);
     }

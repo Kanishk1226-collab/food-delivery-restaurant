@@ -8,12 +8,13 @@ import org.springframework.http.ResponseEntity;
 
 public interface RestaurantService {
     ResponseEntity<BaseResponse<?>> addRestaurant(RestaurantRequest restRequest, String restAgentEmail);
-    ResponseEntity<BaseResponse<?>> getAllRestaurants(int page);
-    ResponseEntity<BaseResponse<?>> setRestaurantAvailability(String restAgentEmail, boolean isAvail);
+    ResponseEntity<BaseResponse<?>> getRestaurants(int page);
+    ResponseEntity<BaseResponse<?>> setRestaurantAvailability(String restAgentEmail, String status);
     ResponseEntity<BaseResponse<?>> removeRestaurant(int restId);
     ResponseEntity<BaseResponse<?>> getRestById(int restId);
     ResponseEntity<BaseResponse<?>> approveRestaurant(ApproveRestaurantRequest approveRestaurantRequest);
     ResponseEntity<BaseResponse<?>> updateRestaurant(UpdateRestaurantRequest updateRestaurant);
     ResponseEntity<BaseResponse<?>> isVerifiedRestaurant(String restAgentEmail);
     ResponseEntity<BaseResponse<?>> getUnVerifiedRestaurants(String adminEmail, int page);
+    ResponseEntity<BaseResponse<?>> getRestaurantsByIsVeg(int page, boolean isVeg);
 }

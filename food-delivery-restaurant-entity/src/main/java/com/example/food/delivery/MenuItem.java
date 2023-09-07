@@ -48,4 +48,9 @@ public class MenuItem {
     @Column(name = EntityConstants.MENU_IS_VEG)
     private boolean isVeg;
 
+    @Column(name = EntityConstants.RATING)
+    private Double rating;
+
+//    @Column(name = EntityConstants.RATING_COUNT)
+//    private Integer ratingCount;
 }

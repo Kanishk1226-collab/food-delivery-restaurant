@@ -1,5 +1,6 @@
 package com.example.food.delivery.Controller;
 
+import com.example.food.delivery.Request.MenuItemFilter;
 import com.example.food.delivery.Request.MenuItemRequest;
 import com.example.food.delivery.Request.UpdateMenuItemRequest;
 import com.example.food.delivery.Response.BaseResponse;
@@ -45,5 +46,10 @@ public class MenuItemController {
     @GetMapping("/getRestaurantMenu")
     public ResponseEntity<BaseResponse<?>> getRestMenuItems(@RequestParam int restaurantId, int page) {
         return menuItemService.getMenuItemsByRestId(restaurantId, page);
+    }
+
+    @GetMapping("/menuItem")
+    public ResponseEntity<BaseResponse<?>> getMenuItemByIsVeg(@RequestBody MenuItemFilter menuItemFilter, @RequestParam int page) {
+        return menuItemService.getMenuItemByIsVeg(menuItemFilter, page);
     }
 }

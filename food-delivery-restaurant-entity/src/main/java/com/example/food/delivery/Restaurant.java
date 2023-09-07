@@ -1,5 +1,7 @@
 package com.example.food.delivery;
 
+import com.example.food.delivery.Request.RestaurantStatus;
+import com.example.food.delivery.Validator.EnumNamePattern;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -32,10 +34,10 @@ public class Restaurant {
     @Column(name = EntityConstants.LOCATION)
     private String location;
 
-    @Min(value = -1, message = "Rating must be at least 1")
-    @Max(value = 5, message = "Rating must be at most 5")
+//    @Min(value = -1, message = "Rating must be at least 1")
+//    @Max(value = 5, message = "Rating must be at most 5")
     @Column(name = EntityConstants.AVG_RATING)
-    private int avgRating;
+    private Integer avgRating;
 
     @NotNull(message = "Opening Time cannot be null")
     @Column(name = EntityConstants.OPENING_TIME)
@@ -45,9 +47,16 @@ public class Restaurant {
     @Column(name = EntityConstants.CLOSING_TIME)
     private String closeTime;
 
-    @NotNull(message = "Availability must be provided")
-    @Column(name = EntityConstants.REST_IS_AVAILABLE)
-    private Boolean isAvailable;
+//    @EnumNamePattern(
+//            regexp = "AVAILABLE|NOT_AVAILABLE|NOT_DELIVERABLE|NOT_OPEN",
+//            message = "Role Should be either ADMIN or CO_ADMIN"
+//    )
+    @Column(name = EntityConstants.REST_STATUS)
+    private RestaurantStatus status;
+
+    @NotBlank(message = "Availability message cannot be blank")
+    @Column(name = EntityConstants.AVAIL_MSG)
+    private String availMsg;
 
     @NotNull(message = "Is Veg must be provided")
     @Column(name = EntityConstants.REST_IS_VEG)

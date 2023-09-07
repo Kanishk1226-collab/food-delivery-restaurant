@@ -20,4 +20,9 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Integer> {
     @Query("SELECT mi FROM MenuItem mi WHERE mi.menuRestId = :menuRestId")
     Page<MenuItem> findByMenuRestId(@Param("menuRestId") int menuRestId, Pageable pageable);
 
+    @Query("SELECT mi FROM MenuItem mi WHERE mi.menuRestId = :menuRestId AND mi.isVeg = :isVeg")
+    Page<MenuItem> findByMenuRestIdIsVegFilter(@Param("menuRestId") int menuRestId, @Param("isVeg") boolean isVeg, Pageable pageable);
+
+    String findMenuItemNameByMenuItemId(int menuItemId);
+
 }
