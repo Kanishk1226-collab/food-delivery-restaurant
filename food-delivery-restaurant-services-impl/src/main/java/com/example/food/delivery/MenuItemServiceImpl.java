@@ -1,10 +1,7 @@
 package com.example.food.delivery;
 
 import com.example.food.delivery.*;
-import com.example.food.delivery.Request.MenuItemFilter;
-import com.example.food.delivery.Request.MenuItemRequest;
-import com.example.food.delivery.Request.MenuTypeRequest;
-import com.example.food.delivery.Request.UpdateMenuItemRequest;
+import com.example.food.delivery.Request.*;
 import com.example.food.delivery.Response.BaseResponse;
 import com.example.food.delivery.Response.CartResponse;
 import com.example.food.delivery.Response.MenuItemResponse;
@@ -25,6 +22,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -57,12 +55,18 @@ public class MenuItemServiceImpl implements MenuItemService {
             if(!menuTypeRepository.existsById(menuItemRequest.getMenuTypeId())) {
                 throw new RestaurantManagementExceptions.MenuTypeNotFound("Menu Type Not Found");
             }
+            Optional<Restaurant> restaurant = restaurantRepository.findById(restId);
             menuItem.setMenuTypeId(menuItemRequest.getMenuTypeId());
             menuItem.setMenuRestId(restId);
             menuItem.setMenuItemName(menuItemRequest.getMenuItemName());
             menuItem.setMenuItemDesc(menuItemRequest.getMenuItemDesc());
             menuItem.setPrice(menuItemRequest.getPrice());
             menuItem.setAvailable(menuItemRequest.getIsAvailable());
+            if(restaurant.get().isVeg()) {
+                if(!menuItemRequest.getIsVeg()) {
+                    throw new RestaurantManagementExceptions.InvalidInputException("Vegetarian Restaurant cannot have Non-Vegetarian Food");
+                }
+            }
             menuItem.setVeg(menuItemRequest.getIsVeg());
             menuItem.setRating(null);
 //            menuItem.setRatingCount(0);
@@ -147,6 +151,7 @@ public class MenuItemServiceImpl implements MenuItemService {
 
     public synchronized ResponseEntity<BaseResponse<?>> getMenuDetail(int menuItemId, int quantity) {
         try {
+            updateRestaurantStatusAndMessage();
             Optional<MenuItem> optMenuItem = menuItemRepository.findById(menuItemId);
             if(optMenuItem.isEmpty()) {
                 throw new RestaurantManagementExceptions.MenuItemNotFound("Menu Item not Found");
@@ -159,15 +164,15 @@ public class MenuItemServiceImpl implements MenuItemService {
             MenuType menuType = optMenuType.get();
             Optional<Restaurant> optRestaurant = restaurantRepository.findById(menuItem.getMenuRestId());
             Restaurant restaurant = optRestaurant.get();
-            if(!restaurant.getIsAvailable() || !restaurant.getIsVerified()) {
+            if(restaurant.getStatus().equals(RestaurantStatus.NOT_AVAILABLE) || !restaurant.getIsVerified()) {
                 throw new RestaurantManagementExceptions.NonAvailabilityException("Restaurant Not Available");
             }
-            if(!isCurrentTimeBetweenOpeningAndClosing(restaurant.getOpenTime(), restaurant.getCloseTime())) {
+            if(restaurant.getStatus().equals(RestaurantStatus.NOT_OPEN)) {
                 throw new RestaurantManagementExceptions.NonAvailabilityException("Restaurant will be available at " + restaurant.getOpenTime() + " to " + restaurant.getCloseTime());
             }
-            BaseResponse<?> checkDelAgentAvailability = restTemplate.getForObject("http://localhost:8081/user-service/deliveryAgent/delAgentAvailability?restaurantAgentEmail=" + restaurant.getRestAgentEmail(), BaseResponse.class);
-            if(!checkDelAgentAvailability.isSuccess()) {
-                throw new RestaurantManagementExceptions.NonAvailabilityException(checkDelAgentAvailability.getError());
+//            BaseResponse<?> checkDelAgentAvailability = restTemplate.getForObject("http://localhost:8081/user-service/delAgent/checkStatus?restaurantAgentEmail=" + restaurant.getRestAgentEmail(), BaseResponse.class);
+            if(restaurant.getStatus().equals(RestaurantStatus.NOT_DELIVERABLE)) {
+                throw new RestaurantManagementExceptions.NonAvailabilityException("Not Delivering currently.");
             }
             CartResponse cartResponse = new CartResponse();
             cartResponse.setRestaurantId(menuItem.getMenuRestId());
@@ -181,6 +186,7 @@ public class MenuItemServiceImpl implements MenuItemService {
         }
         return ResponseEntity.ok(response);
     }
+
 
 
     public ResponseEntity<BaseResponse<?>> getMenuItemsByRestId(int menuRestId, int page) {
@@ -252,6 +258,31 @@ public class MenuItemServiceImpl implements MenuItemService {
         } catch (ParseException e) {
             e.printStackTrace();
             return false;
+        }
+    }
+
+    public void updateRestaurantStatusAndMessage() {
+        List<Restaurant> restaurants = restaurantRepository.findByStatus(RestaurantStatus.AVAILABLE, RestaurantStatus.NOT_OPEN);
+        for (Restaurant restaurant : restaurants) {
+            RestaurantStatus currentStatus = restaurant.getStatus();
+            if (currentStatus == RestaurantStatus.AVAILABLE) {
+                if ((!isCurrentTimeBetweenOpeningAndClosing(restaurant.getOpenTime(), restaurant.getCloseTime()))) {
+                    restaurant.setStatus(RestaurantStatus.NOT_OPEN);
+                    restaurant.setAvailMsg("Restaurant will be open from " + restaurant.getOpenTime() + " hrs to " + restaurant.getCloseTime() + " hrs.");
+                }
+            } else if (currentStatus == RestaurantStatus.NOT_OPEN) {
+                if ((isCurrentTimeBetweenOpeningAndClosing(restaurant.getOpenTime(), restaurant.getCloseTime()))) {
+                    BaseResponse<?> checkDelAgentAvailability = restTemplate.getForObject("http://localhost:8081/user-service/delAgent/checkStatus?restaurantAgentEmail=" + restaurant.getRestAgentEmail(), BaseResponse.class);
+                    if (!checkDelAgentAvailability.isSuccess()) {
+                        restaurant.setStatus(RestaurantStatus.NOT_DELIVERABLE);
+                        restaurant.setAvailMsg("Not Delivering currently. You can add items to cart and checkout after sometime.");
+                    } else {
+                        restaurant.setStatus(RestaurantStatus.AVAILABLE);
+                        restaurant.setAvailMsg("Restaurant currently available to deliver foods.");
+                    }
+                }
+            }
+            restaurantRepository.save(restaurant);
         }
     }
 }

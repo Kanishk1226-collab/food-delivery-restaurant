@@ -76,6 +76,10 @@ public class RatingServiceImpl implements RatingService {
         return ResponseEntity.ok(response);
     }
 
+//    public ResponseEntity<BaseResponse<?>> getRatingByOrder(int orderId) {
+//
+//    }
+
     public void updateAvgRatingInMenu(int menuItemId) {
         Optional<MenuItem> optMenuItem = menuItemRepository.findById(menuItemId);
         MenuItem menuItem = optMenuItem.get();

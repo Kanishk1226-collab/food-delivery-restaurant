@@ -17,7 +17,7 @@ public class RatingController {
     @Autowired
     private RatingService ratingService;
 
-    @PostMapping(value = "/createRating")
+    @PostMapping(value = "/create")
     public ResponseEntity<BaseResponse<?>> createRating(@Valid @RequestBody RatingRequest ratingRequest){
         return ratingService.createRating(ratingRequest);
     }

@@ -12,9 +12,9 @@ public interface RestaurantService {
     ResponseEntity<BaseResponse<?>> setRestaurantAvailability(String restAgentEmail, String status);
     ResponseEntity<BaseResponse<?>> removeRestaurant(int restId);
     ResponseEntity<BaseResponse<?>> getRestById(int restId);
-    ResponseEntity<BaseResponse<?>> approveRestaurant(ApproveRestaurantRequest approveRestaurantRequest);
-    ResponseEntity<BaseResponse<?>> updateRestaurant(UpdateRestaurantRequest updateRestaurant);
+    ResponseEntity<BaseResponse<?>> approveRestaurant(String restAgentEmail);
+    ResponseEntity<BaseResponse<?>> updateRestaurant(UpdateRestaurantRequest updateRestaurant, String restEmail);
     ResponseEntity<BaseResponse<?>> isVerifiedRestaurant(String restAgentEmail);
-    ResponseEntity<BaseResponse<?>> getUnVerifiedRestaurants(String adminEmail, int page);
+    ResponseEntity<BaseResponse<?>> getUnVerifiedRestaurants(int page);
     ResponseEntity<BaseResponse<?>> getRestaurantsByIsVeg(int page, boolean isVeg);
 }

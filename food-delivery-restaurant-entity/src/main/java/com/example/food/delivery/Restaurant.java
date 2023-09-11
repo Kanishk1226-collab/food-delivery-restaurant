@@ -52,6 +52,7 @@ public class Restaurant {
 //            message = "Role Should be either ADMIN or CO_ADMIN"
 //    )
     @Column(name = EntityConstants.REST_STATUS)
+    @Enumerated(EnumType.STRING)
     private RestaurantStatus status;
 
     @NotBlank(message = "Availability message cannot be blank")

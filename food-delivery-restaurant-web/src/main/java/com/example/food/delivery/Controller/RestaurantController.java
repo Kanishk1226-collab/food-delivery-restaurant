@@ -27,7 +27,7 @@ public class RestaurantController {
     }
 
     @GetMapping(value = "/all/restaurants")
-    @PreAuthorize("#userRole == 'ADMIN'")
+    @PreAuthorize("#userRole == 'ADMIN' or #userRole == 'SUPER_ADMIN' or #userRole == 'CO_ADMIN' or #userRole == 'CUSTOMER'")
     public ResponseEntity<?> getRestaurants(@RequestParam int page,
                                             @RequestHeader("userEmail") String userEmail,
                                             @RequestHeader("userRole") String userRole) {
@@ -40,37 +40,46 @@ public class RestaurantController {
         return restService.getRestaurantsByIsVeg(page, isVeg);
     }
 
-    @PutMapping("/setRestaurantAvailability")
-    public ResponseEntity<BaseResponse<?>> setAvailability(@RequestParam String restAgentEmail, Boolean isAvail) {
-        return restService.setRestaurantAvailability(restAgentEmail, isAvail);
+    @PutMapping("/restaurant/status")
+    public ResponseEntity<BaseResponse<?>> setAvailability(@RequestParam String restAgentEmail, String status) {
+        return restService.setRestaurantAvailability(restAgentEmail, status);
     }
 
-    @PutMapping(value = "/verifyRestaurant")
-    public ResponseEntity<BaseResponse<?>> verifyRestaurant(@Valid @RequestBody ApproveRestaurantRequest approveRestaurantRequest){
-        return restService.approveRestaurant(approveRestaurantRequest);
+    @PutMapping(value = "/restaurant/approve")
+    @PreAuthorize("#userRole == 'ADMIN' or #userRole == 'SUPER_ADMIN' or #userRole == 'CO_ADMIN'")
+    public ResponseEntity<BaseResponse<?>> verifyRestaurant(@Valid @RequestParam String restAgentEmail,
+                                                            @RequestHeader("userEmail") String userEmail,
+                                                            @RequestHeader("userRole") String userRole){
+        return restService.approveRestaurant(restAgentEmail);
     }
 
-    @PutMapping(value = "/updateRestaurant")
-    public ResponseEntity<BaseResponse<?>> updateRestaurant(@Valid @RequestBody UpdateRestaurantRequest updateRestaurantRequest){
-        return restService.updateRestaurant(updateRestaurantRequest);
+    @PutMapping(value = "/restaurant/update")
+    @PreAuthorize("#userRole == 'RESTAURANT_AGENT'")
+    public ResponseEntity<BaseResponse<?>> updateRestaurant(@Valid @RequestBody UpdateRestaurantRequest updateRestaurantRequest,
+                                                            @RequestHeader("userEmail") String userEmail,
+                                                            @RequestHeader("userRole") String userRole){
+        return restService.updateRestaurant(updateRestaurantRequest, userEmail);
     }
 
-    @GetMapping(value = "/getRestById")
+    @GetMapping(value = "/restaurant/id")
     public ResponseEntity<BaseResponse<?>> getRestaurantBId(@RequestParam int restId){
         return restService.getRestById(restId);
     }
 
-    @GetMapping(value = "/isVerifiedRestaurant")
+    @GetMapping(value = "/restaurant/isVerified")
     public ResponseEntity<BaseResponse<?>> isVerifiedRestaurant(@RequestParam String restAgentEmail){
         return restService.isVerifiedRestaurant(restAgentEmail);
     }
 
-    @GetMapping(value = "/unverifiedRestaurant")
-    public ResponseEntity<BaseResponse<?>> getUnverifiedRestaurant(@RequestParam String adminEmail, int page){
-        return restService.getUnVerifiedRestaurants(adminEmail, page);
+    @GetMapping(value = "/restaurant/unverified")
+    @PreAuthorize("#userRole == 'ADMIN' or #userRole == 'SUPER_ADMIN' or #userRole == 'CO_ADMIN'")
+    public ResponseEntity<BaseResponse<?>> getUnverifiedRestaurant(@RequestHeader("userEmail") String userEmail,
+                                                                   @RequestHeader("userRole") String userRole,
+                                                                   int page){
+        return restService.getUnVerifiedRestaurants(page);
     }
 
-    @DeleteMapping("/{restId}")
+    @DeleteMapping("/restaurant/{restId}")
     public ResponseEntity<BaseResponse<?>> deleteRestaurant(@PathVariable int restId) {
         return restService.removeRestaurant(restId);
     }

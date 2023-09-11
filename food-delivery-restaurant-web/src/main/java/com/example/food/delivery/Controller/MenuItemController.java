@@ -9,6 +9,7 @@ import com.example.food.delivery.ServiceInterface.MenuItemService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,38 +18,49 @@ public class MenuItemController {
     @Autowired
     private MenuItemService menuItemService;
 
-    @PostMapping(value = "/addMenuItem")
-    public ResponseEntity<BaseResponse<?>> addMenuItem(@Valid @RequestBody MenuItemRequest menuItemRequest, @RequestParam String restAgentEmail){
-        return menuItemService.addMenuItem(menuItemRequest, restAgentEmail);
+    @PostMapping(value = "/add")
+    @PreAuthorize("#userRole == 'RESTAURANT_AGENT'")
+    public ResponseEntity<BaseResponse<?>> addMenuItem(@Valid @RequestBody MenuItemRequest menuItemRequest,
+                                                       @RequestHeader("userEmail") String userEmail,
+                                                       @RequestHeader("userRole") String userRole){
+        return menuItemService.addMenuItem(menuItemRequest, userEmail);
     }
 
-    @GetMapping(value = "/getMenuItems")
-    public ResponseEntity<?> getAllMenuItems() {
+    @GetMapping(value = "/all")
+    @PreAuthorize("#userRole == 'ADMIN'")
+    public ResponseEntity<?> getAllMenuItems(@RequestHeader("userEmail") String userEmail,
+                                             @RequestHeader("userRole") String userRole) {
         return ResponseEntity.ok(menuItemService.getAllMenuItems());
     }
 
-    @PutMapping(value = "/updateMenuItem")
-    public ResponseEntity<?> updateMenuItem(@Valid @RequestBody UpdateMenuItemRequest updateMenuItem, String restAgentEmail) {
-        return ResponseEntity.ok(menuItemService.updateMenuItem(updateMenuItem, restAgentEmail));
+    @PutMapping(value = "/update")
+    @PreAuthorize("#userRole == 'RESTAURANT_AGENT'")
+    public ResponseEntity<?> updateMenuItem(@Valid @RequestBody UpdateMenuItemRequest updateMenuItem,
+                                            @RequestHeader("userEmail") String userEmail,
+                                            @RequestHeader("userRole") String userRole) {
+        return ResponseEntity.ok(menuItemService.updateMenuItem(updateMenuItem, userEmail));
     }
 
 
-    @DeleteMapping("/{menuItemId}")
-    public ResponseEntity<BaseResponse<?>> deleteMenuItem(@PathVariable int menuItemId) {
+    @DeleteMapping("/delete/{menuItemId}")
+    @PreAuthorize("#userRole == 'RESTAURANT_AGENT'")
+    public ResponseEntity<BaseResponse<?>> deleteMenuItem(@PathVariable int menuItemId,
+                                                          @RequestHeader("userEmail") String userEmail,
+                                                          @RequestHeader("userRole") String userRole) {
         return menuItemService.removeMenuItem(menuItemId);
     }
 
-    @GetMapping("/getMenuDetail")
+    @GetMapping("/menuDetail")
     public ResponseEntity<BaseResponse<?>> getMenuDetail(@RequestParam int menuItemId, int quantity) {
         return menuItemService.getMenuDetail(menuItemId, quantity);
     }
 
-    @GetMapping("/getRestaurantMenu")
+    @GetMapping("/restaurant")
     public ResponseEntity<BaseResponse<?>> getRestMenuItems(@RequestParam int restaurantId, int page) {
         return menuItemService.getMenuItemsByRestId(restaurantId, page);
     }
 
-    @GetMapping("/menuItem")
+    @GetMapping("/isVeg")
     public ResponseEntity<BaseResponse<?>> getMenuItemByIsVeg(@RequestBody MenuItemFilter menuItemFilter, @RequestParam int page) {
         return menuItemService.getMenuItemByIsVeg(menuItemFilter, page);
     }

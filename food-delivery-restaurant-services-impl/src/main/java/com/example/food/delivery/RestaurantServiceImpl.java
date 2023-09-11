@@ -18,7 +18,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.LocalTime;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,16 +40,6 @@ public class RestaurantServiceImpl implements RestaurantService {
 
     public synchronized ResponseEntity<BaseResponse<?>> addRestaurant(RestaurantRequest restRequest, String restAgentEmail) {
         try {
-//            if(!isValidEmail(restAgentEmail)) {
-//                throw new RestaurantManagementExceptions.InvalidInputException("Enter Valid Restaurant Agent Email");
-//            }
-//            BaseResponse<?> isRestAgentValidResponse = restTemplate.getForObject("http://localhost:8081/user-service/restaurantAgent/isRestAgentLoggedIn?restAgentEmail=" + restAgentEmail, BaseResponse.class);
-//            if(isRestAgentValidResponse == null) {
-//                throw new RestaurantManagementExceptions.RestTemplateException("System Error");
-//            }
-//            if(!isRestAgentValidResponse.isSuccess()){
-//                throw new RestaurantManagementExceptions.RestTemplateException(isRestAgentValidResponse.getError());
-//            }
             if (restaurantRepository.existsByRestAgentEmail(restAgentEmail)) {
                 throw new RestaurantManagementExceptions.UserAlreadyExistsException("Restaurant with this email already registered");
             }
@@ -79,20 +73,20 @@ public class RestaurantServiceImpl implements RestaurantService {
     }
 
     public synchronized ResponseEntity<BaseResponse<?>> getRestaurants(int page) {
-        LocalTime currentTime = LocalTime.now();
+        updateRestaurantStatusAndMessage();
         int pageSize = 10;
         Pageable pageable = PageRequest.of(page, pageSize);
-        Page<Restaurant> restaurants = restaurantRepository.findAllWithCustomSorting(currentTime, pageable);
+        Page<Restaurant> restaurants = restaurantRepository.findAllWithCustomSorting(pageable);
         List<Restaurant> restaurantList = restaurants.getContent();
         response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, restaurantList);
         return ResponseEntity.ok(response);
     }
 
     public synchronized ResponseEntity<BaseResponse<?>> getRestaurantsByIsVeg(int page, boolean isVeg) {
-        LocalTime currentTime = LocalTime.now();
+        updateRestaurantStatusAndMessage();
         int pageSize = 10;
         Pageable pageable = PageRequest.of(page, pageSize);
-        Page<Restaurant> restaurants = restaurantRepository.findAllWithIsVegFilter(currentTime, isVeg, pageable);
+        Page<Restaurant> restaurants = restaurantRepository.findAllWithIsVegFilter(isVeg, pageable);
         List<Restaurant> restaurantList = restaurants.getContent();
         response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, restaurantList);
         return ResponseEntity.ok(response);
@@ -111,9 +105,23 @@ public class RestaurantServiceImpl implements RestaurantService {
                 throw new RestaurantManagementExceptions.VerifyException("Restaurant Not Verified");
             }
             if(!EnumUtils.isValidEnum(RestaurantStatus.class, status.toUpperCase())) {
-                throw new RestaurantManagementExceptions.InvalidInputException("Status should be either AVAILABLE or NOT_AVAILABLE");
+                throw new RestaurantManagementExceptions.InvalidInputException("Status should be either AVAILABLE or NOT_DELIVERABLE");
             }
-            restaurant.setStatus(RestaurantStatus.valueOf(status.toUpperCase()));
+            String restStatus = status.toUpperCase();
+            if(restaurant.getStatus() != RestaurantStatus.NOT_AVAILABLE && restaurant.getStatus() != RestaurantStatus.NOT_OPEN) {
+                if(restaurant.getStatus() == RestaurantStatus.NOT_DELIVERABLE && restStatus.equals("AVAILABLE")) {
+                    if((!isCurrentTimeBetweenOpeningAndClosing(restaurant.getOpenTime(), restaurant.getCloseTime()))) {
+                        restaurant.setStatus(RestaurantStatus.NOT_OPEN);
+                        restaurant.setAvailMsg("Restaurant will be open from " + restaurant.getOpenTime() + " hrs to " + restaurant.getCloseTime());
+                    } else {
+                        restaurant.setStatus(RestaurantStatus.AVAILABLE);
+                        restaurant.setAvailMsg("Restaurant currently available to deliver foods.");
+                    }
+                } else if(restaurant.getStatus() == RestaurantStatus.AVAILABLE && restStatus.equals("NOT_DELIVERABLE")) {
+                    restaurant.setStatus(RestaurantStatus.NOT_DELIVERABLE);
+                    restaurant.setAvailMsg("Not Delivering currently.");
+                }
+            }
             restaurantRepository.save(restaurant);
             response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, "Availability status changed");
         } catch(Exception e) {
@@ -156,14 +164,8 @@ public class RestaurantServiceImpl implements RestaurantService {
         return ResponseEntity.ok(response);
     }
 
-    public synchronized ResponseEntity<BaseResponse<?>> approveRestaurant(ApproveRestaurantRequest approveRestaurantRequest) {
+    public synchronized ResponseEntity<BaseResponse<?>> approveRestaurant(String restAgentEmail) {
         try {
-            String adminEmail = approveRestaurantRequest.getAdminEmail();
-            String restAgentEmail = approveRestaurantRequest.getRestAgentEmail();
-            if(!isValidEmail(adminEmail)) {
-                throw new RestaurantManagementExceptions.InvalidInputException("Enter valid Admin Email");
-            }
-            isValidAdminEmail(adminEmail);
             if(!isValidEmail(restAgentEmail)) {
                 throw new RestaurantManagementExceptions.InvalidInputException("Enter valid Restaurant Agent Email");
             }
@@ -175,6 +177,7 @@ public class RestaurantServiceImpl implements RestaurantService {
                 throw new RestaurantManagementExceptions.VerifyException("Restaurant already verified");
             }
             restaurant.setIsVerified(true);
+            restaurant.setAvailMsg("Restaurant Verified");
             restaurantRepository.save(restaurant);
             response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, "Restaurant verified Successfully");
         } catch(Exception e) {
@@ -183,11 +186,11 @@ public class RestaurantServiceImpl implements RestaurantService {
         return ResponseEntity.ok(response);
     }
 
-    public synchronized ResponseEntity<BaseResponse<?>> updateRestaurant(UpdateRestaurantRequest updateRestaurant) {
+    public synchronized ResponseEntity<BaseResponse<?>> updateRestaurant(UpdateRestaurantRequest updateRestaurant, String restEmail) {
         try {
-            String restEmail = updateRestaurant.getRestAgentEmail();
             verifyRestaurant(restEmail);
             Restaurant restaurant = restaurantRepository.findByRestAgentEmail(restEmail);
+            String responseMessage = "Restaurant detail updated successfully.";
             if(updateRestaurant.getOpenTime() != null) {
                 if(!isValidTime(updateRestaurant.getOpenTime())) {
                     throw new RestaurantManagementExceptions.InvalidInputException("Enter Valid Opening Time | Format should be HH:mm");
@@ -200,11 +203,42 @@ public class RestaurantServiceImpl implements RestaurantService {
                 }
                 restaurant.setCloseTime(updateRestaurant.getCloseTime());
             }
-            if(updateRestaurant.getIsAvailable() != null) {
-                restaurant.setStatus(updateRestaurant.getIsAvailable());
+            if(updateRestaurant.getStatus() != null) {
+                String status = updateRestaurant.getStatus().toUpperCase();
+                if(!EnumUtils.isValidEnum(RestaurantStatus.class, status)) {
+                    throw new RestaurantManagementExceptions.InvalidInputException("Status should be either AVAILABLE or NOT_AVAILABLE");
+                }
+                if(status.equals("AVAILABLE")) {
+                    if((!isCurrentTimeBetweenOpeningAndClosing(restaurant.getOpenTime(), restaurant.getCloseTime()))) {
+                        throw new RestaurantManagementExceptions.NonAvailabilityException("You cannot change your restaurant status to AVAILABLE before opening time or " +
+                                "after closing time. You can able to change status only when restaurant is opened to deliver orders.");
+                    }
+                    BaseResponse<?> checkDelAgentAvailability = restTemplate.getForObject("http://localhost:8081/user-service/delAgent/checkStatus?restaurantAgentEmail=" + restaurant.getRestAgentEmail(), BaseResponse.class);
+                    if(!checkDelAgentAvailability.isSuccess()) {
+                        restaurant.setStatus(RestaurantStatus.NOT_DELIVERABLE);
+                        restaurant.setAvailMsg("Not Delivering currently. You can add items to cart and checkout after sometime.");
+                        responseMessage = responseMessage + "Since no delivery partners are currently available for you restaurant to deliver food, the status " +
+                                "changed to NOT DELIVERABLE. Once delivery partners are available, status will be automatically changed to AVAILABLE.";
+                    } else if((!isCurrentTimeBetweenOpeningAndClosing(restaurant.getOpenTime(), restaurant.getCloseTime()))) {
+                        restaurant.setStatus(RestaurantStatus.NOT_OPEN);
+                        restaurant.setAvailMsg("Restaurant will be open from " + restaurant.getOpenTime() + " hrs to " + restaurant.getCloseTime());
+                        responseMessage = responseMessage + "Since restaurant will be available from " + restaurant.getOpenTime() + " hrs to " + restaurant.getCloseTime() +
+                                ", the status will changed to NOT_OPEN. ";
+                    } else {
+                        restaurant.setStatus(RestaurantStatus.AVAILABLE);
+                        restaurant.setAvailMsg("Restaurant currently available to deliver foods.");
+                        }
+                } else if(status.equals("NOT_AVAILABLE")) {
+                    restaurant.setStatus(RestaurantStatus.valueOf(status));
+                    restaurant.setAvailMsg("Currently Restaurant was not available to deliver foods.");
+                    responseMessage = responseMessage + "Note: Changing the status of restaurant to NOT AVAILABLE, it is Restaurant Agent's responsibility " +
+                            "to change the status back to AVAILABLE. You can change the status back to AVAILABLE only when Restaurant is opened to deliver foods.";
+                } else {
+                    throw new RestaurantManagementExceptions.InvalidInputException("Status should be either AVAILABLE or NOT_AVAILABLE");
+                }
             }
             restaurantRepository.save(restaurant);
-            response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, "Restaurant updated Successfully");
+            response = new BaseResponse<>(true, ResponseStatus.SUCCESS.getStatus(), null, responseMessage);
         } catch (Exception e) {
             response = new BaseResponse<>(false, ResponseStatus.ERROR.getStatus(), e.getMessage(), null);
         }
@@ -234,12 +268,8 @@ public class RestaurantServiceImpl implements RestaurantService {
         return ResponseEntity.ok(response);
     }
 
-    public synchronized ResponseEntity<BaseResponse<?>> getUnVerifiedRestaurants(String adminEmail, int page) {
+    public synchronized ResponseEntity<BaseResponse<?>> getUnVerifiedRestaurants(int page) {
         try {
-            if(!isValidEmail(adminEmail)) {
-                throw new RestaurantManagementExceptions.InvalidInputException("Enter Valid Admin Email");
-            }
-            isValidAdminEmail(adminEmail);
             int pageSize = 10;
             Sort sortById = Sort.by(Sort.Direction.ASC, "restId");
             PageRequest pageRequest = PageRequest.of(page, pageSize, sortById);
@@ -254,13 +284,28 @@ public class RestaurantServiceImpl implements RestaurantService {
         return ResponseEntity.ok(response);
     }
 
-    public void isValidAdminEmail(String email) {
-        BaseResponse<?> isAdminValidResponse = restTemplate.getForObject("http://localhost:8081/user-service/admins/isAdminLoggedIn?adminEmail=" + email, BaseResponse.class);
-        if(isAdminValidResponse == null) {
-            throw new RestaurantManagementExceptions.RestTemplateException("System Error");
-        }
-        if(!isAdminValidResponse.isSuccess()){
-            throw new RestaurantManagementExceptions.RestTemplateException(isAdminValidResponse.getError());
+    public void updateRestaurantStatusAndMessage() {
+        List<Restaurant> restaurants = restaurantRepository.findByStatus(RestaurantStatus.AVAILABLE, RestaurantStatus.NOT_OPEN);
+        for (Restaurant restaurant : restaurants) {
+            RestaurantStatus currentStatus = restaurant.getStatus();
+            if (currentStatus == RestaurantStatus.AVAILABLE) {
+                if ((!isCurrentTimeBetweenOpeningAndClosing(restaurant.getOpenTime(), restaurant.getCloseTime()))) {
+                    restaurant.setStatus(RestaurantStatus.NOT_OPEN);
+                    restaurant.setAvailMsg("Restaurant will be open from " + restaurant.getOpenTime() + " hrs to " + restaurant.getCloseTime() + " hrs.");
+                }
+            } else if (currentStatus == RestaurantStatus.NOT_OPEN) {
+                if ((isCurrentTimeBetweenOpeningAndClosing(restaurant.getOpenTime(), restaurant.getCloseTime()))) {
+                    BaseResponse<?> checkDelAgentAvailability = restTemplate.getForObject("http://localhost:8081/user-service/delAgent/checkStatus?restaurantAgentEmail=" + restaurant.getRestAgentEmail(), BaseResponse.class);
+                    if (!checkDelAgentAvailability.isSuccess()) {
+                        restaurant.setStatus(RestaurantStatus.NOT_DELIVERABLE);
+                        restaurant.setAvailMsg("Not Delivering currently. You can add items to cart and checkout after sometime.");
+                    } else {
+                        restaurant.setStatus(RestaurantStatus.AVAILABLE);
+                        restaurant.setAvailMsg("Restaurant currently available to deliver foods.");
+                    }
+                }
+            }
+            restaurantRepository.save(restaurant);
         }
     }
 
@@ -280,6 +325,22 @@ public class RestaurantServiceImpl implements RestaurantService {
         }
         Matcher m = p.matcher(time);
         return m.matches();
+    }
+
+    public boolean isCurrentTimeBetweenOpeningAndClosing(String openingTime, String closingTime) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm");
+            Date time1 = sdf.parse(openingTime);
+            Date time2 = sdf.parse(closingTime);
+            Calendar currentTime = Calendar.getInstance();
+            Date currentTimeValue = currentTime.getTime();
+            String currentTimeStr = sdf.format(currentTimeValue);
+            Date currentTime24Value = sdf.parse(currentTimeStr);
+            return currentTime24Value.after(time1) && currentTime24Value.before(time2);
+        } catch (ParseException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
 }

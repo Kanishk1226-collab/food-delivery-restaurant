@@ -15,9 +15,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UpdateRestaurantRequest {
-    @Email(message = "Enter valid Restaurant Agent Email")
-    private String restAgentEmail;
     private String openTime;
     private String closeTime;
-    private Boolean isAvailable;
+    private String status;
 }
